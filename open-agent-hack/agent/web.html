@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fuel Reconciliation Investigator</title>
+<style>
+  :root {
+    --bg: #f4f2ed; --card: #ffffff; --ink: #14171c; --ink-2: #3b414b; --muted: #6b7280; --line: #e5e1d8; --line-2: #efece5;
+    --night: #12161c; --night-2: #1c222b; --night-line: #2c333e; --night-text: #c4cad3;
+    --accent: #e8590c; --accent-dark: #c2410c; --accent-soft: #fff3ea;
+    --loss: #c0262d; --loss-soft: #fdeeee; --ok: #15803d; --ok-soft: #eaf7ef; --warn: #a16207; --warn-soft: #fff7e0;
+    --code: #f3f1ec; --mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+    --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --shadow: 0 1px 2px rgba(20, 23, 28, .05), 0 4px 16px rgba(20, 23, 28, .05);
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* ---------- top bar ---------- */
+  .top { background: var(--night); color: #fff; }
+  .top-in { max-width: 1280px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; min-width: 0; }
+  .mark { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #f97316, #c2410c); display: grid; place-items: center; flex: none; }
+  .mark svg { width: 20px; height: 20px; }
+  .brand h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: .1px; }
+  .brand small { display: block; color: var(--night-text); font-size: 12.5px; }
+  .powered { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--night-line); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--night-text); white-space: nowrap; }
+  .chip b { color: #fff; font-weight: 600; }
+
+  /* ---------- station strip ---------- */
+  .strip { background: var(--night-2); border-top: 1px solid var(--night-line); color: #fff; }
+  .strip-in { max-width: 1280px; margin: 0 auto; padding: 16px 28px 18px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .st-main { display: flex; align-items: center; gap: 14px; margin-right: auto; min-width: 0; }
+  .st-icon { width: 44px; height: 44px; border-radius: 12px; background: #2a313c; display: grid; place-items: center; flex: none; }
+  .st-icon svg { width: 22px; height: 22px; }
+  .st-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .9px; color: var(--night-text); }
+  .st-name { font-size: 19px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
+  .badge { display: inline-block; vertical-align: middle; margin-left: 8px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; background: #3a3220; color: #fcd58a; }
+  .badge.own { background: #173a26; color: #8ee0ad; }
+  .st-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+  .st-stat b { display: block; font-size: 16px; font-weight: 650; }
+  .st-stat span { font-size: 12px; color: var(--night-text); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1px solid var(--line); background: #fff; padding: 9px 16px; font-weight: 600; font-size: 14px; text-decoration: none; color: var(--ink); transition: background .15s, border-color .15s, transform .05s; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn svg { width: 17px; height: 17px; flex: none; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn-ghost { background: transparent; }
+  .btn-ghost:hover { border-color: var(--ink-2); }
+  .btn-dark { background: #fff; color: var(--ink); border-color: #fff; }
+
+  /* ---------- layout ---------- */
+  main { max-width: 1280px; margin: 0 auto; padding: 24px 28px 48px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
+  section, aside { min-width: 0; display: grid; gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 20px 22px; box-shadow: var(--shadow); min-width: 0; }
+  .card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  h2 { margin: 0; font-size: 12.5px; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); font-weight: 700; }
+  .empty { color: var(--muted); font-size: 14px; margin: 0; }
+
+  /* ask */
+  .ask-card { padding: 22px; }
+  .ask-title { font-size: 21px; font-weight: 650; margin: 0 0 4px; }
+  .ask-sub { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  .ask { display: flex; gap: 10px; }
+  .ask-box { flex: 1; min-width: 0; position: relative; }
+  .ask-box svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 19px; height: 19px; color: var(--muted); }
+  .ask input { width: 100%; font-size: 16px; padding: 13px 14px 13px 42px; border: 1px solid var(--line); border-radius: 11px; background: #fbfaf7; }
+  .ask input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232, 89, 12, .15); background: #fff; }
+  .ask .btn-primary { padding: 0 24px; font-size: 15px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .examples button { font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); text-align: left; max-width: 100%; }
+  .examples button:hover { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
+  .status { display: flex; gap: 14px; align-items: center; margin-top: 16px; color: var(--muted); font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #c9c4b8; display: inline-block; margin-right: 7px; }
+  .running .dot { background: var(--accent); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+
+  /* own-data callout */
+  .callout { display: flex; gap: 16px; align-items: center; background: linear-gradient(135deg, #fff6ee, #fffaf5); border: 1px solid #f6d4bd; border-radius: var(--r); padding: 16px 20px; }
+  .callout svg { width: 34px; height: 34px; flex: none; color: var(--accent); }
+  .callout div { flex: 1; min-width: 0; }
+  .callout b { display: block; font-size: 15px; }
+  .callout span { color: var(--ink-2); font-size: 13.5px; }
+
+  /* findings */
+  .answer { font-size: 17px; line-height: 1.6; margin: 0 0 16px; }
+  .totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 6px; }
+  .total { background: var(--bg); border-radius: 11px; padding: 10px 14px; }
+  .total b { display: block; font-size: 21px; font-weight: 700; line-height: 1.2; }
+  .total span { font-size: 12px; color: var(--muted); }
+  .total.loss b { color: var(--loss); }
+  .finding { border: 1px solid var(--line); border-left: 5px solid var(--warn); border-radius: 11px; padding: 14px 16px; margin-top: 12px; }
+  .finding.confirmed_loss { border-left-color: var(--loss); }
+  .finding.explained { border-left-color: var(--ok); }
+  .finding.normal { border-left-color: #a8a395; }
+  .f-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .f-title { font-weight: 650; font-size: 16px; }
+  .pill { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 3px 9px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
+  .confirmed_loss .pill { background: var(--loss-soft); color: var(--loss); }
+  .explained .pill { background: var(--ok-soft); color: var(--ok); }
+  .f-what { margin: 8px 0; color: var(--ink-2); }
+  .f-meta { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13.5px; color: var(--muted); }
+  .f-meta b { color: var(--ink); }
+  .evidence { margin: 10px 0 0; padding: 0; list-style: none; }
+  .evidence li { font-family: var(--mono); font-size: 12.5px; background: var(--code); border-radius: 7px; padding: 5px 9px; margin-top: 5px; overflow-wrap: anywhere; }
+
+  /* timeline */
+  .step { border-left: 2px solid var(--line); padding: 0 0 16px 18px; position: relative; margin-left: 5px; }
+  .step:last-child { padding-bottom: 2px; }
+  .step::before { content: ""; position: absolute; left: -7px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); }
+  .step.err::before { border-color: var(--loss); }
+  .step.saved::before { border-color: var(--ok); }
+  .step .label { font-size: 12px; color: var(--muted); }
+  .step .thought { margin: 2px 0 6px; }
+  details > summary { cursor: pointer; font-size: 13px; color: var(--accent-dark); }
+  pre { background: var(--code); border-radius: 9px; padding: 10px 12px; font: 12.5px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
+  .tbl-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--line-2); border-radius: 9px; }
+  table { border-collapse: collapse; font-size: 12.5px; font-family: var(--mono); width: 100%; }
+  th, td { border-bottom: 1px solid var(--line-2); padding: 5px 10px; text-align: left; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--muted); font-weight: 600; background: #faf9f6; }
+  .rowcount { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+  .sqlerr { color: var(--loss); font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--warn); }
+
+  /* sidebar */
+  .mem { border-top: 1px solid var(--line-2); padding: 11px 0; font-size: 13.5px; }
+  .mem:first-child { border-top: 0; padding-top: 0; }
+  .mem.superseded { opacity: .5; }
+  .mem-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-top: 5px; align-items: center; }
+  .mem-actions { display: flex; gap: 6px; margin-left: auto; }
+  .mem-actions button { font-size: 12px; padding: 2px 9px; border-radius: 7px; border: 1px solid var(--line); background: #fff; }
+  .mem-actions .wrong:hover { border-color: var(--loss); color: var(--loss); }
+  .mem-actions .helpful:hover { border-color: var(--ok); color: var(--ok); }
+  .recalled { background: var(--accent-soft); border-radius: 9px; padding: 9px 11px; margin-top: 8px; font-size: 13px; }
+  .recalled:first-child { margin-top: 0; }
+  .receipt { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 3px 0; }
+  .kv span { color: var(--muted); }
+  .kv b { text-align: right; overflow-wrap: anywhere; }
+  .ledger { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-2); }
+  footer { max-width: 1280px; margin: 0 auto; padding: 0 28px 30px; color: var(--muted); font-size: 12.5px; text-align: center; }
+
+  /* ---------- upload dialog ---------- */
+  dialog { border: 0; padding: 0; border-radius: 18px; width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px); box-shadow: 0 20px 60px rgba(0,0,0,.3); color: var(--ink); }
+  dialog::backdrop { background: rgba(12, 15, 20, .55); }
+  .dlg { display: flex; flex-direction: column; max-height: calc(100vh - 24px); }
+  .dlg-h { padding: 20px 24px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: flex-start; }
+  .dlg-h h3 { margin: 0; font-size: 19px; }
+  .dlg-h p { margin: 3px 0 0; color: var(--muted); font-size: 13.5px; }
+  .x { margin-left: auto; border: 0; background: var(--bg); width: 34px; height: 34px; border-radius: 9px; font-size: 20px; line-height: 1; flex: none; }
+  .dlg-b { padding: 18px 24px; overflow-y: auto; }
+  .dlg-f { padding: 14px 24px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #fbfaf7; border-radius: 0 0 18px 18px; }
+  .dlg-f .grow { margin-right: auto; }
+  .steps3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .s3 { background: var(--bg); border-radius: 11px; padding: 11px 13px; font-size: 13px; color: var(--ink-2); }
+  .s3 b { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 13.5px; margin-bottom: 2px; }
+  .s3 i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11.5px; display: grid; place-items: center; flex: none; }
+  .s3 a { color: var(--accent-dark); font-weight: 600; }
+  .field { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 14px; }
+  .field input { display: block; width: 100%; font-size: 15px; font-weight: 400; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; margin-top: 6px; }
+  .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232, 89, 12, .15); }
+  .drop { display: block; border: 2px dashed #d8d2c5; border-radius: 14px; padding: 22px; text-align: center; background: #fbfaf7; transition: border-color .15s, background .15s; cursor: pointer; }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop svg { width: 34px; height: 34px; color: var(--accent); }
+  .drop b { display: block; font-size: 15px; margin-top: 4px; }
+  .drop span { color: var(--muted); font-size: 13px; }
+  .drop input { display: none; }
+  .filegrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .fg { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px; min-width: 0; }
+  .fg .tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #d8d2c5; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: transparent; margin-top: 1px; }
+  .fg.got { border-color: #bfe3cc; background: var(--ok-soft); }
+  .fg.got .tick { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .fg div { min-width: 0; }
+  .fg code { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+  .fg .opt { font-size: 11px; color: var(--muted); margin-left: 4px; }
+  .fg small { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+  .pk { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; margin-top: 8px; }
+  .pk.good { border-color: #bfe3cc; }
+  .pk.bad { border-color: #f1c4c6; }
+  .pk-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pk-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; flex: 1; min-width: 140px; }
+  .pk select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; max-width: 100%; }
+  .pk-st { font-size: 12.5px; margin-top: 5px; overflow-wrap: anywhere; }
+  .pk-st.ok { color: var(--ok); }
+  .pk-st.err { color: var(--loss); }
+  .pk-st.muted { color: var(--muted); }
+  .pk-map { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+  .pk-x { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; padding: 2px 6px; }
+  .need-h { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); font-weight: 700; margin: 16px 0 0; }
+  .msg { margin-top: 14px; border-radius: 11px; padding: 11px 14px; font-size: 13.5px; }
+  .msg.err { background: var(--loss-soft); color: #8f1d22; }
+  .msg.err ul { margin: 6px 0 0; padding-left: 18px; }
+  .msg.ok { background: var(--ok-soft); color: #0f5e2d; }
+  .msg.busy { background: var(--bg); color: var(--ink-2); }
+  .msg:empty { display: none; }
+  .linkbtn { border: 0; background: none; color: var(--muted); text-decoration: underline; font-size: 13px; padding: 0; }
+  .linkbtn:hover { color: var(--ink); }
+
+  @media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 700px) {
+    .top-in, .strip-in, main, footer { padding-left: 16px; padding-right: 16px; }
+    .powered { display: none; }
+    .st-main { width: 100%; }
+    .strip-in .btn { width: 100%; }
+    .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ask { flex-direction: column; }
+    .ask .btn-primary { padding: 12px; }
+    .steps3, .filegrid { grid-template-columns: minmax(0, 1fr); }
+    .callout { flex-wrap: wrap; }
+    .callout .btn { width: 100%; }
+    .dlg-h, .dlg-b, .dlg-f { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v17"/><path d="M2 22h14"/><path d="M6 8h6"/><path d="M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg></div>
+      <div><h1>Fuel Reconciliation Investigator</h1><small>Ask why the numbers don't add up. Get evidence, a dollar value and who was on duty.</small></div>
+    </div>
+    <div class="powered">
+      <span class="chip">Data <b>Zetaris</b></span>
+      <span class="chip">Memory <b>Meterless H-MEM</b></span>
+      <span class="chip">Model <b>NVIDIA Nemotron</b> via Nightshift</span>
+    </div>
+  </div>
+  <div class="strip">
+    <div class="strip-in">
+      <div class="st-main">
+        <div class="st-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fcd58a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg></div>
+        <div style="min-width:0">
+          <div class="st-label">Station being investigated</div>
+          <div class="st-name"><span id="stName">Loading&hellip;</span><span class="badge hidden" id="stBadge"></span></div>
+        </div>
+      </div>
+      <div class="st-stats" id="stStats"></div>
+      <button class="btn btn-dark" id="openUpload" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+        Upload your records
+      </button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section>
+    <div class="card ask-card">
+      <p class="ask-title">What do you want to investigate?</p>
+      <p class="ask-sub">The agent checks pump meters against till sales, deliveries against tank dips, and cash sales against the bank.</p>
+      <form class="ask" id="ask">
+        <div class="ask-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="q" autocomplete="off" placeholder="e.g. Is any pump losing fuel?">
+        </div>
+        <button class="btn btn-primary" id="go" type="submit">Investigate</button>
+      </form>
+      <div class="examples" id="examples"></div>
+      <div class="status" id="status"><span><span class="dot"></span><span id="statusText">Ready</span></span><span id="clock"></span><span id="stepCount"></span></div>
+    </div>
+
+    <div class="callout hidden" id="callout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+      <div><b>You're looking at sample data.</b><span>Upload your own station's shift sheets, till sales, dips, delivery notes and bank statement to investigate them.</span></div>
+      <button class="btn btn-primary" type="button" id="openUpload2">Upload your records</button>
+    </div>
+
+    <div class="card hidden" id="answerCard">
+      <div class="card-h"><h2>Findings</h2></div>
+      <p class="answer" id="answer"></p>
+      <div class="totals" id="totals"></div>
+      <div id="findings"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2>Investigation, step by step</h2></div>
+      <div id="steps"><p class="empty">Each query the agent runs, and what it found, appears here as it happens.</p></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <div class="card-h"><h2>Recalled from memory</h2></div>
+      <div id="recalled"><p class="empty">Past findings H-MEM brings to this investigation appear here.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Memory for this station</h2></div>
+      <div id="memories"><p class="empty">Loading&hellip;</p></div>
+      <div class="mem-meta ledger hidden" id="memStats"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>Proof of model</h2></div>
+      <div id="receipts"><p class="empty">After a run: which NVIDIA Nemotron model answered, with Nightshift receipt IDs.</p></div>
+    </div>
+  </aside>
+</main>
+<footer>Every answer is built from live SQL against Zetaris. A full trace of each run is saved in runs/.</footer>
+
+<dialog id="uploadDlg">
+  <div class="dlg">
+    <div class="dlg-h">
+      <div><h3>Upload your station's records</h3><p>The agent will investigate your data instead of the sample. Nothing is replaced unless every file passes the checks.</p></div>
+      <button class="x" type="button" id="closeUpload" aria-label="Close">&times;</button>
+    </div>
+    <div class="dlg-b">
+      <div class="steps3">
+        <div class="s3"><b><i>1</i>Get the templates</b><a href="/templates.zip" download>Download CSV templates</a> with example rows.</div>
+        <div class="s3"><b><i>2</i>Export as CSV</b>Your own file and column names are fine; common names are recognised. Excel: <em>Save As &rarr; CSV</em>.</div>
+        <div class="s3"><b><i>3</i>Upload</b>Name your station, then drop all the files below.</div>
+      </div>
+      <label class="field">Station name<input type="text" id="stInput" maxlength="80" placeholder="e.g. Avondale Service Station"></label>
+      <label class="drop" id="drop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <b>Drop your CSV files here</b>
+        <span>or click to choose them (any file names; select all at once)</span>
+        <input type="file" id="csvFiles" accept=".csv,text/csv" multiple>
+      </label>
+      <div id="picked"></div>
+      <div class="need-h" id="needH">What the investigator needs</div>
+      <div class="filegrid" id="fileList"></div>
+      <div class="msg" id="loadMsg"></div>
+    </div>
+    <div class="dlg-f">
+      <button type="button" class="linkbtn grow" id="sampleBtn">Restore the sample data</button>
+      <button type="button" class="btn btn-ghost" id="cancelUpload">Cancel</button>
+      <button type="button" class="btn btn-primary" id="loadBtn">Check and load records</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = String(text); return e; };
+const LABEL = { confirmed_loss: "Confirmed loss", explained: "Explained", normal: "Normal", unresolved: "Unresolved" };
+let source = null, timer = null, started = 0;
+
+function setRunning(on, text) {
+  $("status").classList.toggle("running", on);
+  $("statusText").textContent = text;
+  $("go").disabled = on;
+  $("openUpload").disabled = on;
+  $("openUpload2").disabled = on;
+  if (on) {
+    started = Date.now();
+    timer = setInterval(() => { $("clock").textContent = Math.round((Date.now() - started) / 1000) + " s"; }, 500);
+  } else if (timer) { clearInterval(timer); timer = null; }
+}
+
+function stepBox(cls) {
+  const box = el("div", "step" + (cls ? " " + cls : ""));
+  $("steps").appendChild(box);
+  box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return box;
+}
+function lastStep() { const s = $("steps").querySelectorAll(".step"); return s[s.length - 1] || stepBox(); }
+
+function renderTable(target, columns, rows, count) {
+  if (!rows || !rows.length) { target.appendChild(el("div", "rowcount", "No rows: this check found nothing.")); return; }
+  const wrap = el("div", "tbl-wrap"), t = el("table");
+  if (columns && columns.length) {
+    const tr = el("tr"); columns.forEach(c => tr.appendChild(el("th", null, c))); t.appendChild(tr);
+  }
+  rows.forEach(r => { const tr = el("tr"); r.forEach(v => tr.appendChild(el("td", null, v === null ? "" : v))); t.appendChild(tr); });
+  wrap.appendChild(t); target.appendChild(wrap);
+  target.appendChild(el("div", "rowcount", count > rows.length ? `${count} rows (first ${rows.length} shown)` : `${count} row${count === 1 ? "" : "s"}`));
+}
+
+function money(v) { return "US$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function renderResult(d) {
+  const r = d.result;
+  $("answerCard").classList.remove("hidden");
+  $("findings").innerHTML = ""; $("totals").innerHTML = "";
+  if (!r) { $("answer").textContent = "The agent did not reach a final answer. See the steps below and the trace file."; return; }
+  $("answer").textContent = r.answer || "";
+  const fs = r.findings || [];
+  const losses = fs.filter(f => f.status === "confirmed_loss");
+  const lossTotal = losses.reduce((a, f) => a + (Number(f.value_usd) || 0), 0);
+  [[money(lossTotal), "confirmed losses", "loss"], [losses.length, "loss findings"],
+   [fs.filter(f => f.status === "explained").length, "explained, not a loss"], [d.steps, "queries run"]]
+    .forEach(([b, s, c]) => { const t = el("div", "total" + (c ? " " + c : "")); t.appendChild(el("b", null, b)); t.appendChild(el("span", null, s)); $("totals").appendChild(t); });
+  fs.forEach(f => {
+    const st = f.status || "unresolved";
+    const card = el("div", "finding " + st);
+    const head = el("div", "f-head");
+    head.appendChild(el("span", "f-title", f.title || "Finding"));
+    head.appendChild(el("span", "pill", LABEL[st] || st));
+    card.appendChild(head);
+    card.appendChild(el("p", "f-what", f.what || ""));
+    const meta = el("div", "f-meta");
+    if (f.value_usd) { const m = el("span", null, "Value "); m.appendChild(el("b", null, money(f.value_usd))); meta.appendChild(m); }
+    if (f.on_duty) { const m = el("span", null, "On duty "); m.appendChild(el("b", null, f.on_duty)); meta.appendChild(m); }
+    card.appendChild(meta);
+    if ((f.evidence || []).length) {
+      const ul = el("ul", "evidence"); f.evidence.forEach(e => ul.appendChild(el("li", null, e))); card.appendChild(ul);
+    }
+    $("findings").appendChild(card);
+  });
+  const rc = $("receipts"); rc.innerHTML = "";
+  (d.models || []).forEach(m => { const k = el("div", "kv"); k.appendChild(el("span", null, "Model")); k.appendChild(el("b", null, m)); rc.appendChild(k); });
+  const k = el("div", "kv"); k.appendChild(el("span", null, "Nightshift receipts")); k.appendChild(el("b", null, (d.receipts || []).length)); rc.appendChild(k);
+  (d.receipts || []).slice(0, 4).forEach(id => rc.appendChild(el("div", "receipt", id)));
+  if (d.trace) rc.appendChild(el("div", "receipt", "Trace: " + d.trace));
+  $("answerCard").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function handle(kind, d) {
+  if (kind === "memory") {
+    const box = $("recalled"); box.innerHTML = "";
+    d.memories.forEach(m => {
+      const r = el("div", "recalled", m.content);
+      r.appendChild(el("div", "mem-meta", `${m.id} · relevance ${m.relevance} · ${m.layer.replace("_", "-")}`));
+      box.appendChild(r);
+    });
+  } else if (kind === "thought") {
+    $("stepCount").textContent = `step ${d.step}`;
+    const box = stepBox();
+    box.appendChild(el("div", "label", `Step ${d.step} · ${d.model || ""}`));
+    box.appendChild(el("div", "thought", d.thought));
+  } else if (kind === "sql") {
+    const box = lastStep(), det = el("details"); det.appendChild(el("summary", null, "SQL sent to Zetaris"));
+    det.appendChild(el("pre", null, d.sql)); box.appendChild(det);
+  } else if (kind === "rows") {
+    renderTable(lastStep(), d.columns, d.rows, d.count);
+  } else if (kind === "sql_error") {
+    const box = lastStep(); box.classList.add("err");
+    box.appendChild(el("div", "sqlerr", "Zetaris rejected the query; the agent will fix it: " + d.error.slice(0, 220)));
+  } else if (kind === "memory_saved") {
+    const box = stepBox("saved");
+    box.appendChild(el("div", "label", "Saved to H-MEM"));
+    (d.saved || []).forEach(s => box.appendChild(el("div", "thought", `${s.id}` + (s.supersedes ? ` (replaces ${s.supersedes})` : ""))));
+    loadMemory();
+  } else if (kind === "warn") {
+    stepBox().appendChild(el("div", "note", d));
+  } else if (kind === "error") {
+    const box = stepBox("err"); box.appendChild(el("div", "sqlerr", d));
+  } else if (kind === "done") {
+    renderResult(d);
+  }
+}
+
+function resetRun() {
+  $("steps").innerHTML = '<p class="empty">Each query the agent runs, and what it found, appears here as it happens.</p>';
+  $("recalled").innerHTML = '<p class="empty">Past findings H-MEM brings to this investigation appear here.</p>';
+  $("answerCard").classList.add("hidden");
+  $("receipts").innerHTML = '<p class="empty">After a run: which NVIDIA Nemotron model answered, with Nightshift receipt IDs.</p>';
+  $("stepCount").textContent = ""; $("clock").textContent = "";
+}
+
+function run(question) {
+  if (!question.trim() || source) return;
+  resetRun(); $("steps").innerHTML = "";
+  $("recalled").innerHTML = '<p class="empty">Nothing relevant recalled for this question.</p>';
+  setRunning(true, "Investigating…");
+  source = new EventSource("/api/run?q=" + encodeURIComponent(question));
+  source.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.kind === "end") { source.close(); source = null; setRunning(false, "Done"); loadMemory(); return; }
+    handle(msg.kind, msg.data);
+  };
+  source.onerror = () => { if (source) { source.close(); source = null; setRunning(false, "Connection lost: is python -m agent.web still running?"); } };
+}
+
+async function loadMemory() {
+  try {
+    const res = await fetch("/api/memory"); const d = await res.json();
+    const box = $("memories"); box.innerHTML = "";
+    if (d.error) { box.appendChild(el("p", "empty", "H-MEM unavailable: " + d.error)); return; }
+    const mems = (d.memories || []).slice().reverse();
+    if (!mems.length) box.appendChild(el("p", "empty", "Nothing yet. Proven findings are stored after each investigation."));
+    mems.forEach(m => {
+      const row = el("div", "mem" + (m.supersededBy ? " superseded" : ""));
+      row.appendChild(el("div", null, m.content.length > 190 ? m.content.slice(0, 190) + "…" : m.content));
+      const meta = el("div", "mem-meta");
+      meta.appendChild(el("span", null, m.id));
+      meta.appendChild(el("span", null, `confidence ${m.confidence.toFixed(2)}`));
+      meta.appendChild(el("span", null, m.layer.replace("_", "-")));
+      if (m.supersededBy) meta.appendChild(el("span", null, `replaced by ${m.supersededBy}`));
+      if (m.tags.includes("review")) meta.appendChild(el("span", null, "flagged for review"));
+      if (!m.supersededBy) {
+        const acts = el("span", "mem-actions");
+        [["helpful", "Helpful"], ["wrong", "Wrong"]].forEach(([k, t]) => {
+          const b = el("button", k, t); b.type = "button"; b.onclick = () => feedback(m.id, k); acts.appendChild(b);
+        });
+        meta.appendChild(acts);
+      }
+      row.appendChild(meta); box.appendChild(row);
+    });
+    const st = d.stats && d.stats.ledger ? Object.entries(d.stats.ledger).map(([k, v]) => `${k} ${v}`).join(" · ") : "";
+    $("memStats").textContent = st ? "Trust ledger: " + st : "";
+    $("memStats").classList.toggle("hidden", !st);
+  } catch (e) { $("memories").innerHTML = ""; $("memories").appendChild(el("p", "empty", "Could not load memory.")); }
+}
+
+async function feedback(id, kind) {
+  await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kind }) });
+  loadMemory();
+}
+
+// ---------- station records ----------
+let FILES = {}, picked = [];
+const NICE = { station_setup: "Station setup (pumps & tanks)", shift_sheet: "Shift sheet (meters & attendants)",
+  pos_sales: "Till / POS sales", tank_dips: "Tank dip sheet", delivery_notes: "Delivery notes / supplier invoices",
+  bank_statement: "Bank statement", calibration_log: "Pump calibration log" };
+
+function isSample(st) { return (st.name || "").includes("sample data"); }
+
+function examplesFor(st) {
+  const qs = isSample(st)
+    ? ["Why was diesel short on 8 October?", "Is any pump losing fuel?",
+       "Does the cash in the bank match our cash sales this fortnight?", "Give me a full reconciliation report for 1-14 October."]
+    : ["Is any pump losing fuel?", "Were any deliveries short?",
+       "Does the cash in the bank match our cash sales?", "Give me a full reconciliation report for all the loaded dates."];
+  const box = $("examples"); box.innerHTML = "";
+  qs.forEach(q => { const b = el("button", null, q); b.type = "button"; b.onclick = () => { $("q").value = q; run(q); }; box.appendChild(b); });
+}
+
+function niceDate(s) {
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d) ? s : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function showStation(st) {
+  const s = st.summary || {}, sample = isSample(st);
+  $("stName").textContent = sample ? (st.name || "").replace(/\s*\(sample data\)\s*/i, "") : (st.name || "");
+  $("stBadge").textContent = sample ? "Sample data" : "Your records";
+  $("stBadge").className = "badge" + (sample ? "" : " own");
+  $("callout").classList.toggle("hidden", !sample);
+  const stats = $("stStats"); stats.innerHTML = "";
+  const items = [[s.from ? `${niceDate(s.from)} – ${niceDate(s.to)}` : "", "period"],
+                 [s.pumps, "pumps"], [s.shifts, "shifts"], [s.sales !== undefined ? Number(s.sales).toLocaleString() : undefined, "till sales"]];
+  items.forEach(([v, l]) => { if (v === undefined || v === "") return; const d = el("div", "st-stat"); d.appendChild(el("b", null, v)); d.appendChild(el("span", null, l)); stats.appendChild(d); });
+  examplesFor(st);
+}
+
+const fileFor = (key) => picked.filter(p => p.key === key);
+const missingOf = (p) => (p.key && p.info[p.key]) ? p.info[p.key].missing : [];
+
+function renderPicked() {
+  const box = $("picked"); box.innerHTML = "";
+  if (picked.length) box.appendChild(el("div", "need-h", "Your files"));
+  picked.forEach(p => {
+    const miss = missingOf(p), dup = p.key && fileFor(p.key).length > 1;
+    const row = el("div", "pk" + (!p.key ? "" : (miss.length || dup) ? " bad" : " good"));
+    const top = el("div", "pk-top");
+    top.appendChild(el("span", "pk-name", p.name));
+    const sel = el("select"); sel.setAttribute("aria-label", "What is " + p.name + "?");
+    const none = el("option", null, "Don't use this file"); none.value = ""; sel.appendChild(none);
+    Object.keys(FILES).forEach(k => { const o = el("option", null, NICE[k] || k); o.value = k; sel.appendChild(o); });
+    sel.value = p.key || "";
+    sel.onchange = () => { p.key = sel.value; renderPicked(); renderFileList(); };
+    top.appendChild(sel);
+    const x = el("button", "pk-x", "×"); x.type = "button"; x.title = "Remove";
+    x.onclick = () => { picked = picked.filter(q => q !== p); renderPicked(); renderFileList(); };
+    top.appendChild(x);
+    row.appendChild(top);
+    if (!p.key) {
+      row.appendChild(el("div", "pk-st muted", "Not recognised. Choose what this file is, or leave it out."));
+    } else if (miss.length) {
+      row.appendChild(el("div", "pk-st err", `Can't find a column for: ${miss.join(", ")}. Your columns: ${p.columns.join(", ")}. Rename those columns, or choose a different file type.`));
+    } else if (dup) {
+      row.appendChild(el("div", "pk-st err", `Two files are set as "${NICE[p.key]}". Choose one, or set the other to "Don't use this file".`));
+    } else {
+      row.appendChild(el("div", "pk-st ok", "✓ All needed columns found"));
+      const ren = Object.entries(p.info[p.key].renamed || {});
+      if (ren.length) row.appendChild(el("div", "pk-map", "Reading " + ren.map(([a, b]) => `"${a}" as ${b}`).join(", ")));
+    }
+    box.appendChild(row);
+  });
+}
+
+function renderFileList() {
+  const box = $("fileList"); box.innerHTML = "";
+  Object.entries(FILES).forEach(([key, f]) => {
+    const ps = fileFor(key), ok = ps.length === 1 && !missingOf(ps[0]).length;
+    const card = el("div", "fg" + (ok ? " got" : ""));
+    card.appendChild(el("span", "tick", "✓"));
+    const body = el("div");
+    body.appendChild(el("code", null, NICE[key] || key));
+    if (f.optional_file) body.appendChild(el("span", "opt", "optional"));
+    body.appendChild(el("small", null, ok ? "From: " + ps[0].name : f.about));
+    card.appendChild(body); box.appendChild(card);
+  });
+}
+
+async function loadStation() {
+  try {
+    const d = await (await fetch("/api/station")).json();
+    FILES = d.files || {}; showStation(d.station || {}); renderFileList();
+  } catch (e) { $("stName").textContent = "Station details unavailable"; }
+}
+
+function loadMsg(kind, lines) {
+  const box = $("loadMsg"); box.innerHTML = "";
+  if (!lines || !lines.length || !lines[0]) { box.className = "msg"; return; }
+  box.className = "msg " + kind;
+  if (kind === "err" && lines.length > 1) {
+    box.appendChild(el("b", null, "Please fix these in your files, then upload again:"));
+    const ul = el("ul"); lines.forEach(l => ul.appendChild(el("li", null, l))); box.appendChild(ul);
+  } else box.textContent = lines[0];
+}
+
+async function addFiles(list) {
+  const notCsv = [];
+  for (const f of [...list]) {
+    if (!/\.(csv|txt)$/i.test(f.name)) { notCsv.push(f.name); continue; }
+    const text = await f.text();
+    const header = (text.replace(/^\uFEFF/, "").split(/\r?\n/)[0] || "").slice(0, 4000);
+    let d = { key: null, per_key: {}, columns: [] };
+    try {
+      const res = await fetch("/api/detect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, header }) });
+      d = await res.json();
+    } catch (e) { /* server unreachable: the manager can still choose the type */ }
+    picked = picked.filter(p => p.name !== f.name);
+    picked.push({ name: f.name, text, key: d.key || "", info: d.per_key || {}, columns: d.columns || [] });
+  }
+  renderPicked(); renderFileList();
+  loadMsg("err", notCsv.length ? ["These are not CSV files (in Excel use Save As → CSV): " + notCsv.join(", ")] : []);
+}
+
+async function sendLoad(url, payload, busyText) {
+  if (source) { loadMsg("err", ["Wait for the current investigation to finish."]); return; }
+  const btns = [$("loadBtn"), $("sampleBtn")]; btns.forEach(b => b.disabled = true);
+  loadMsg("busy", [busyText]);
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const d = await res.json();
+    if (!res.ok || d.errors) { loadMsg("err", d.errors || ["Loading failed."]); return; }
+    showStation(d.station);
+    const s = d.station.summary || {};
+    loadMsg("ok", [`Loaded ${d.station.name}: ${s.from} to ${s.to}, ${s.sales} sales, ${s.deliveries} deliveries, ${s.bank_lines} bank lines.`]);
+    resetRun(); loadMemory();
+    if (url === "/api/upload") { picked = []; renderPicked(); renderFileList(); }
+    setTimeout(() => { $("uploadDlg").close(); $("q").focus(); }, 1400);
+  } catch (e) { loadMsg("err", ["Could not reach the server: is python -m agent.web still running?"]); }
+  finally { btns.forEach(b => b.disabled = false); }
+}
+
+function openUpload() {
+  if (source) return;
+  loadMsg("", []);
+  const dlg = $("uploadDlg");
+  if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+  $("stInput").focus();
+}
+
+$("openUpload").addEventListener("click", openUpload);
+$("openUpload2").addEventListener("click", openUpload);
+$("closeUpload").addEventListener("click", () => $("uploadDlg").close());
+$("cancelUpload").addEventListener("click", () => $("uploadDlg").close());
+$("uploadDlg").addEventListener("click", (e) => { if (e.target === $("uploadDlg")) $("uploadDlg").close(); });
+$("csvFiles").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
+["dragenter", "dragover"].forEach(t => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave", "drop"].forEach(t => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+$("loadBtn").addEventListener("click", () => {
+  const name = $("stInput").value.trim();
+  if (!name) { loadMsg("err", ["Please type your station's name."]); $("stInput").focus(); return; }
+  const problems = [];
+  picked.filter(p => p.key && missingOf(p).length).forEach(p => problems.push(`${p.name}: missing columns ${missingOf(p).join(", ")}`));
+  Object.keys(FILES).forEach(k => { if (fileFor(k).length > 1) problems.push(`More than one file is set as "${NICE[k]}"`); });
+  const missing = Object.keys(FILES).filter(k => !FILES[k].optional_file && !fileFor(k).length);
+  if (missing.length) problems.push("Still needed: " + missing.map(k => NICE[k]).join(", "));
+  if (problems.length) { loadMsg("err", problems.length > 1 ? problems : problems); return; }
+  const files = {};
+  picked.forEach(p => { if (p.key) files[p.key] = p.text; });
+  sendLoad("/api/upload", { name, files }, "Checking your records…");
+});
+
+$("sampleBtn").addEventListener("click", () => sendLoad("/api/restore-sample", {}, "Restoring the sample data…"));
+
+$("ask").addEventListener("submit", (e) => { e.preventDefault(); run($("q").value); });
+loadStation();
+loadMemory();
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+pump_id,tank_id,fuel_type,tank_capacity_l
+P1,T1,diesel,20000
+P2,T2,petrol,20000
+P3,T1,diesel,20000
+P4,T2,petrol,20000

@@ -5,7 +5,7 @@ problem in the data and prove it.
 """
 
 DATA_MAP = """
-DATA SOURCES (three separate systems, all reached through Zetaris; always use source.table):
+DATA SOURCES (three separate systems, all reached through Zetaris; name tables as forecourt.x, supplier.x or bank.x):
 
 forecourt (the station's forecourt controller, POS and dip sheets)
   forecourt.tanks(tank_id, fuel_type, capacity_l)
@@ -71,7 +71,8 @@ for a cash shortfall: forecourt.shift_assignments for that shift_id).
 SQL_RULES = """
 SQL RULES (Zetaris uses Spark SQL):
 - Exactly ONE read-only statement per action. No semicolons. No INSERT/UPDATE/DELETE/CREATE.
-- Always qualify tables as source.table, e.g. forecourt.pos_sales.
+- Name every table with exactly two parts, database.table: forecourt.pos_sales, supplier.delivery_notes, bank.bank_statement.
+  Never add anything in front (no 'source.', no catalog name).
 - Name every output column with AS, and list columns explicitly (no SELECT *), because results
   may come back without headers.
 - Dates: CAST(ts AS DATE). Joins across sources are allowed.
