@@ -1,0 +1,9 @@
+.env
+__pycache__/
+runs/
+memory/
+.venv/
+hmem/node_modules/
+station.json
+ANSWER_KEY*
+*answer_key*

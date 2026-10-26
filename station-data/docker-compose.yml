@@ -1,0 +1,26 @@
+# Sunrise Fuels sample data (fictional) for Open Agent Hackathon 2026.
+# Runs one small Postgres with three separate databases: forecourt, supplier, bank.
+# Joins the Zetaris Docker network so Zetaris can reach it at host "station-db".
+services:
+  station-db:
+    image: postgres:16-alpine          # same image Zetaris already downloaded
+    container_name: station-db
+    environment:
+      POSTGRES_USER: station
+      POSTGRES_PASSWORD: StationDemo2026
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - station-pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"          # optional: lets you inspect it from the laptop
+    mem_limit: 256m
+    restart: unless-stopped
+    networks: [zetaris]
+
+networks:
+  zetaris:
+    external: true
+    name: zetaris_default
+
+volumes:
+  station-pgdata:

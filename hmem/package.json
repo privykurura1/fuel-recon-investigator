@@ -1,0 +1,13 @@
+{
+  "name": "fuel-recon-hmem",
+  "private": true,
+  "type": "module",
+  "description": "Meterless H-MEM engine (official reference implementation, Apache-2.0) plus a JSON bridge for the Python agent.",
+  "scripts": {
+    "conformance": "tsx conformance/runner.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.19.0"
+  }
+}
